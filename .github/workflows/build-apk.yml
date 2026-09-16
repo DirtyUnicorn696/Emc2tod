@@ -1,0 +1,69 @@
+# Файл для папки .github/workflows/ репозитория с Android-проектом.
+# GitHub читает workflow ТОЛЬКО из .github/workflows/*.yml — если положить
+# его в другую папку (например ci/), сборка не запустится.
+#
+# Панель «GitHub · сборка APK» в генераторе сама заливает этот файл по
+# правильному пути — вручную копировать ничего не нужно.
+#
+# Сборка идёт на серверах GitHub: Android Studio, Android SDK и JDK на
+# своём компьютере держать не обязательно. Готовые APK лежат во вкладке
+# Actions → нужный запуск → раздел Artifacts.
+name: Build APK
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Собрать debug APK
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Собрать release APK
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Что получилось
+        if: always()
+        run: ls -lh app/build/outputs/apk/*/*.apk || true
+
+      - name: Выгрузить debug APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codecompiler-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Выгрузить release APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codecompiler-release-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: warn
+          retention-days: 90
